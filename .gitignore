@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+dist-ssr/
+*.tsbuildinfo
+
+# Emitted by `tsc -b` from vite.config.ts
+ui/vite.config.js
+ui/vite.config.d.ts
+
+# Server runtime
+server/uploads/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Env / local
+.env
+.env.*
+*.local
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
