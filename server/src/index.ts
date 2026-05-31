@@ -14,7 +14,12 @@ mkdirSync(UPLOAD_DIR, { recursive: true });
 const PORT = Number(process.env.PORT ?? 8787);
 
 const app = express();
-app.use(cors());
+// Allow the deployed frontend's origin. Set CORS_ORIGIN to your Vercel URL in
+// production (comma-separated for multiple); defaults to open for local dev.
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : '*';
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json());
 
 const upload = multer({ dest: UPLOAD_DIR });

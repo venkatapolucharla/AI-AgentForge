@@ -1,0 +1,19 @@
+# Render Blueprint — deploys the QA Orchestration backend on the free tier.
+# Docs: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: qa-orchestration-server
+    runtime: node
+    plan: free
+    rootDir: server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "20"
+      # After the Vercel frontend is live, set this to its URL to lock down CORS,
+      # e.g. https://qa-orchestration.vercel.app  (optional; defaults to open).
+      - key: CORS_ORIGIN
+        sync: false
