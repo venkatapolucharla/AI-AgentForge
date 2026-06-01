@@ -63,6 +63,7 @@ export default function App() {
       try {
         const { agents: serverAgents, prd } = await api.fetchAgents();
         applyServer(serverAgents);
+        
         if (prd) setPrdFileName(prd);
       } catch {
         /* stream snapshot will sync us shortly */
@@ -233,6 +234,7 @@ export default function App() {
             phase={phase}
             agents={phaseAgents}
             selectedId={selectedId}
+            prdFileName={prdFileName}
             onSelect={selectAgent}
             onRequestRun={requestRun}
             onReset={resetAgent}
@@ -242,7 +244,12 @@ export default function App() {
       </div>
 
       <ConfirmModal agent={pendingAgent} onConfirm={confirmRun} onCancel={cancelRun} />
-      <ChatbotPanel agents={agents} open={chatbotOpen} onClose={() => setChatbotOpen(false)} />
+      <ChatbotPanel
+        agents={agents}
+        prdFileName={prdFileName}
+        open={chatbotOpen}
+        onClose={() => setChatbotOpen(false)}
+      />
     </div>
   );
 }

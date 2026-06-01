@@ -1,11 +1,56 @@
 import type { Agent, Phase } from '../types';
 import { STATUS_STYLES } from '../lib/status';
 import StatusBadge from './StatusBadge';
+import {
+  generateTestCases,
+  generateSmokeCases,
+  generateRegressionCases,
+  type TestCase,
+} from '../lib/testCases';
+import { downloadCasesExcel } from '../lib/excel';
+
+/**
+ * Agents that can export their output to Excel, keyed by slug. Each entry
+ * knows how to produce its dataset and how to title/name the workbook.
+ */
+const EXCEL_EXPORTS: Record<
+  string,
+  {
+    build: () => TestCase[];
+    title: string;
+    fileBase: string;
+    sheetName: string;
+    note: string;
+  }
+> = {
+  'test-case-generator': {
+    build: generateTestCases,
+    title: 'QA Orchestration — Generated Test Cases',
+    fileBase: 'test-cases',
+    sheetName: 'Test Cases',
+    note: 'Full test-case set: 45 positive, 21 negative, 12 edge (100% AC coverage).',
+  },
+  'smoke-identifier': {
+    build: generateSmokeCases,
+    title: 'QA Orchestration — Smoke Suite',
+    fileBase: 'smoke-suite',
+    sheetName: 'Smoke Cases',
+    note: 'Critical-path smoke tests: login, checkout, and payment happy paths.',
+  },
+  'regression-builder': {
+    build: generateRegressionCases,
+    title: 'QA Orchestration — Regression Suite',
+    fileBase: 'regression-suite',
+    sheetName: 'Regression Cases',
+    note: 'Regression suite across all feature areas (positive + negative coverage).',
+  },
+};
 
 interface Props {
   phase: Phase;
   agents: Agent[];
   selectedId: string | null;
+  prdFileName: string | null;
   onSelect: (id: string) => void;
   onRequestRun: (id: string) => void;
   onReset: (id: string) => void;
@@ -15,6 +60,7 @@ export default function PhaseView({
   phase,
   agents,
   selectedId,
+  prdFileName,
   onSelect,
   onRequestRun,
   onReset,
@@ -113,6 +159,25 @@ export default function PhaseView({
                       Reset
                     </button>
                   )}
+                  {EXCEL_EXPORTS[agent.slug] &&
+                    agent.status === 'complete' && (
+                      <button
+                        onClick={() => {
+                          const cfg = EXCEL_EXPORTS[agent.slug];
+                          downloadCasesExcel(cfg.build(), {
+                            title: cfg.title,
+                            fileBase: cfg.fileBase,
+                            sheetName: cfg.sheetName,
+                            note: cfg.note,
+                            prdFileName,
+                          });
+                        }}
+                        className="ml-auto flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                        title="Download this suite as an Excel workbook"
+                      >
+                        <span>⬇️</span> Download Excel
+                      </button>
+                    )}
                 </div>
               </div>
             );
