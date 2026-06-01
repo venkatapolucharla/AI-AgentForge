@@ -4,6 +4,7 @@ import StatusBadge from './StatusBadge';
 import type { TestCase } from '../lib/testCases';
 import type { PrdArtifacts, PrdDoc } from '../lib/prd';
 import { downloadCasesExcel } from '../lib/excel';
+import { downloadTestPlanWord } from '../lib/word';
 
 /**
  * Agents that can export their output to Excel, keyed by slug. The dataset
@@ -176,6 +177,18 @@ export default function PhaseView({
                         title="Download this suite as an Excel workbook"
                       >
                         <span>⬇️</span> Download Excel
+                      </button>
+                    )}
+                  {agent.slug === 'test-plan-creator' &&
+                    agent.status === 'complete' &&
+                    activePrd &&
+                    artifacts && (
+                      <button
+                        onClick={() => downloadTestPlanWord(activePrd, artifacts)}
+                        className="ml-auto flex items-center gap-1.5 rounded-md bg-indigo-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-indigo-500"
+                        title="Download the test plan as a Word document"
+                      >
+                        <span>⬇️</span> Download Word
                       </button>
                     )}
                 </div>
