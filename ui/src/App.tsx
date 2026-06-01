@@ -1,8 +1,14 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import type { Agent, AgentStatus, LogEntry, LogLevel, PhaseId } from './types';
 import { AGENTS, CHATBOT_AGENT_ID, PHASES } from './data/agents';
 import { now, uid } from './lib/status';
-import * as api from './lib/api';
+import {
+  agentOutputFor,
+  buildArtifacts,
+  createPrdDoc,
+  type PrdArtifacts,
+  type PrdDoc,
+} from './lib/prd';
 import TopBar from './components/TopBar';
 import Sidebar from './components/Sidebar';
 import PhaseTabs from './components/PhaseTabs';
@@ -10,6 +16,23 @@ import PhaseView from './components/PhaseView';
 import ConfirmModal from './components/ConfirmModal';
 import LogPanel from './components/LogPanel';
 import ChatbotPanel from './components/ChatbotPanel';
+import PrdManager from './components/PrdManager';
+
+/** Read an uploaded file as text (best-effort for binary formats). */
+function readFileText(file: File): Promise<string> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ''));
+    reader.onerror = () => resolve('');
+    reader.readAsText(file);
+  });
+}
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 export default function App() {
   const [agents, setAgents] = useState<Agent[]>(AGENTS);
@@ -17,11 +40,18 @@ export default function App() {
   const [activePhase, setActivePhase] = useState<PhaseId>('requirements');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
-  const [prdFileName, setPrdFileName] = useState<string | null>(null);
   const [chatbotOpen, setChatbotOpen] = useState(false);
-  /** null = still probing, true = backend connected, false = offline sim */
-  const [live, setLive] = useState<boolean | null>(null);
-  const liveRef = useRef(false);
+  const [prdManagerOpen, setPrdManagerOpen] = useState(false);
+
+  // ── Multi-PRD state ────────────────────────────────────────────
+  const [prds, setPrds] = useState<PrdDoc[]>([]);
+  const [activePrdId, setActivePrdId] = useState<string | null>(null);
+
+  const activePrd = prds.find((p) => p.id === activePrdId) ?? null;
+  const artifacts: PrdArtifacts | null = useMemo(
+    () => (activePrd ? buildArtifacts(activePrd.profile) : null),
+    [activePrd]
+  );
 
   const addLog = useCallback(
     (agent: Pick<Agent, 'id' | 'name'>, level: LogLevel, message: string) => {
@@ -42,53 +72,82 @@ export default function App() {
     [patchAgent]
   );
 
-  // ── Connect to backend (falls back to local simulation) ────────
-  useEffect(() => {
-    let dispose: (() => void) | undefined;
-    (async () => {
-      const ok = await api.probe();
-      setLive(ok);
-      liveRef.current = ok;
-      if (!ok) return;
+  /** Reset every agent to idle (used when switching the active PRD). */
+  const resetAllAgents = useCallback(() => {
+    setAgents((prev) =>
+      prev.map((a) => ({ ...a, status: 'idle', lastOutput: null }))
+    );
+  }, []);
 
-      // Server is the source of truth — merge its state onto our metadata.
-      const applyServer = (servers: api.ServerAgent[]) =>
-        setAgents((prev) =>
-          prev.map((a) => {
-            const s = servers.find((x) => x.id === a.id);
-            return s ? { ...a, status: s.status, lastOutput: s.lastOutput } : a;
-          })
-        );
-
-      try {
-        const { agents: serverAgents, prd } = await api.fetchAgents();
-        applyServer(serverAgents);
-        
-        if (prd) setPrdFileName(prd);
-      } catch {
-        /* stream snapshot will sync us shortly */
+  // ── PRD upload / select / delete ───────────────────────────────
+  const uploadPrds = useCallback(
+    async (files: FileList) => {
+      const created: PrdDoc[] = [];
+      for (const file of Array.from(files)) {
+        const text = await readFileText(file);
+        created.push(createPrdDoc(file.name, text, humanSize(file.size)));
       }
+      setPrds((prev) => [...prev, ...created]);
+      const prdAgent = AGENTS.find((a) => a.slug === 'prd-analyser')!;
+      created.forEach((c) =>
+        addLog(
+          prdAgent,
+          'info',
+          `PRD uploaded: ${c.name} (${c.profile.features.length} features detected).`
+        )
+      );
+      // Auto-select the first uploaded PRD if none active yet.
+      setActivePrdId((curr) => curr ?? created[0]?.id ?? null);
+      if (!activePrdId && created[0]) resetAllAgents();
+    },
+    [addLog, activePrdId, resetAllAgents]
+  );
 
-      dispose = api.connectStream({
-        onSnapshot: applyServer,
-        onAgent: (s) =>
-          patchAgent(s.id, { status: s.status, lastOutput: s.lastOutput }),
-        onLog: (l) => setLogs((prev) => [...prev, l]),
-      });
-    })();
-    return () => dispose?.();
-  }, [patchAgent]);
+  const selectPrd = useCallback(
+    (id: string) => {
+      if (id === activePrdId) return;
+      setActivePrdId(id);
+      resetAllAgents();
+      const prd = prds.find((p) => p.id === id);
+      const prdAgent = AGENTS.find((a) => a.slug === 'prd-analyser')!;
+      if (prd) {
+        addLog(
+          prdAgent,
+          'info',
+          `Active PRD switched to "${prd.name}". Agents reset — run them to regenerate artifacts.`
+        );
+      }
+      setActivePhase('requirements');
+    },
+    [activePrdId, prds, resetAllAgents, addLog]
+  );
 
-  // ── Run lifecycle ──────────────────────────────────────────────
+  const deletePrd = useCallback(
+    (id: string) => {
+      setPrds((prev) => prev.filter((p) => p.id !== id));
+      if (id === activePrdId) {
+        setActivePrdId(null);
+        resetAllAgents();
+      }
+    },
+    [activePrdId, resetAllAgents]
+  );
+
+  // ── Run lifecycle (PRD-driven) ─────────────────────────────────
   const requestRun = useCallback(
     (id: string) => {
       const agent = agents.find((a) => a.id === id);
       if (!agent) return;
+      if (!activePrd) {
+        addLog(agent, 'warn', 'No active PRD. Upload and select a PRD first.');
+        setPrdManagerOpen(true);
+        return;
+      }
       setStatus(id, 'awaiting');
       setPendingId(id);
       addLog(agent, 'warn', 'Awaiting confirmation to run.');
     },
-    [agents, setStatus, addLog]
+    [agents, activePrd, setStatus, addLog]
   );
 
   const cancelRun = useCallback(() => {
@@ -104,49 +163,31 @@ export default function App() {
     const id = pendingId;
     const agent = agents.find((a) => a.id === id);
     setPendingId(null);
-    if (!agent) return;
+    if (!agent || !activePrd || !artifacts) return;
 
-    // Live: hand off to the backend; SSE drives status + logs from here.
-    if (liveRef.current) {
-      setStatus(id, 'running');
-      void api.runAgent(id).catch(() => {
-        patchAgent(id, { status: 'failed', lastOutput: 'Could not reach server.' });
-        addLog(agent, 'error', 'Could not reach server.');
-      });
-      return;
-    }
-
-    // Offline: simulate the run locally.
     setStatus(id, 'running');
     addLog(agent, 'info', `Confirmed. ${agent.action}`);
-    const duration = 1600 + Math.random() * 1800;
+
+    const duration = 1400 + Math.random() * 1500;
     window.setTimeout(() => {
-      const failed = Math.random() < 0.12;
-      if (failed) {
-        const msg = 'Run failed — see logs for details.';
-        patchAgent(id, { status: 'failed', lastOutput: msg });
-        addLog(agent, 'error', msg);
-      } else {
-        patchAgent(id, { status: 'complete', lastOutput: agent.sampleOutput });
-        addLog(agent, 'success', agent.sampleOutput);
-      }
+      // Output is grounded in the active PRD's artifacts.
+      const output =
+        agentOutputFor(agent.slug, activePrd, artifacts) ?? agent.sampleOutput;
+      patchAgent(id, { status: 'complete', lastOutput: output });
+      addLog(agent, 'success', output);
     }, duration);
-  }, [pendingId, agents, setStatus, addLog, patchAgent]);
+  }, [pendingId, agents, activePrd, artifacts, setStatus, addLog, patchAgent]);
 
   const resetAgent = useCallback(
     (id: string) => {
       const agent = agents.find((a) => a.id === id);
-      if (liveRef.current) {
-        void api.resetAgent(id);
-        return; // SSE will reflect the reset
-      }
       patchAgent(id, { status: 'idle', lastOutput: null });
       if (agent) addLog(agent, 'info', 'Reset to idle.');
     },
     [agents, patchAgent, addLog]
   );
 
-  // ── Selection (also switches to the agent's phase) ─────────────
+  // ── Selection ──────────────────────────────────────────────────
   const selectAgent = useCallback(
     (id: string) => {
       setSelectedId(id);
@@ -158,26 +199,6 @@ export default function App() {
       if (agent) setActivePhase(agent.phase);
     },
     [agents]
-  );
-
-  const uploadPrd = useCallback(
-    async (file: File) => {
-      setActivePhase('requirements');
-      const prd = agents.find((a) => a.slug === 'prd-analyser')!;
-      if (liveRef.current) {
-        try {
-          const name = await api.uploadPrd(file);
-          setPrdFileName(name);
-          addLog(prd, 'info', `PRD uploaded: ${name}`);
-        } catch {
-          addLog(prd, 'error', 'PRD upload failed.');
-        }
-        return;
-      }
-      setPrdFileName(file.name);
-      addLog(prd, 'info', `PRD uploaded: ${file.name}`);
-    },
-    [agents, addLog]
   );
 
   // ── Derived global status ──────────────────────────────────────
@@ -205,18 +226,18 @@ export default function App() {
   return (
     <div className="flex h-screen flex-col overflow-hidden">
       <TopBar
-        prdFileName={prdFileName}
+        activePrdName={activePrd?.name ?? null}
+        prdCount={prds.length}
         globalStatus={globalStatus}
         globalLabel={globalLabel}
-        onUploadPrd={uploadPrd}
+        onOpenPrdManager={() => setPrdManagerOpen(true)}
         onOpenChatbot={() => setChatbotOpen(true)}
       />
 
-      {/* Connection banner */}
-      {live === false && (
-        <div className="shrink-0 bg-amber-500/10 px-4 py-1.5 text-center text-[11px] text-amber-300">
-          Offline mode — backend not detected. Runs are simulated. Start the
-          server (<span className="font-mono">cd server &amp;&amp; npm run dev</span>) for live agents.
+      {/* No-PRD banner */}
+      {!activePrd && (
+        <div className="shrink-0 bg-sky-500/10 px-4 py-1.5 text-center text-[11px] text-sky-300">
+          No active PRD. <button onClick={() => setPrdManagerOpen(true)} className="underline">Upload a PRD</button> to let the 15 agents generate the test plan, test cases, smoke &amp; regression suites, defects, and Jira tickets from it.
         </div>
       )}
 
@@ -234,7 +255,8 @@ export default function App() {
             phase={phase}
             agents={phaseAgents}
             selectedId={selectedId}
-            prdFileName={prdFileName}
+            activePrd={activePrd}
+            artifacts={artifacts}
             onSelect={selectAgent}
             onRequestRun={requestRun}
             onReset={resetAgent}
@@ -246,9 +268,19 @@ export default function App() {
       <ConfirmModal agent={pendingAgent} onConfirm={confirmRun} onCancel={cancelRun} />
       <ChatbotPanel
         agents={agents}
-        prdFileName={prdFileName}
+        activePrd={activePrd}
+        artifacts={artifacts}
         open={chatbotOpen}
         onClose={() => setChatbotOpen(false)}
+      />
+      <PrdManager
+        open={prdManagerOpen}
+        prds={prds}
+        activePrdId={activePrdId}
+        onClose={() => setPrdManagerOpen(false)}
+        onUpload={uploadPrds}
+        onSelect={selectPrd}
+        onDelete={deletePrd}
       />
     </div>
   );

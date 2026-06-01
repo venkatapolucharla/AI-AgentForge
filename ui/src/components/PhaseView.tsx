@@ -1,22 +1,19 @@
 import type { Agent, Phase } from '../types';
 import { STATUS_STYLES } from '../lib/status';
 import StatusBadge from './StatusBadge';
-import {
-  generateTestCases,
-  generateSmokeCases,
-  generateRegressionCases,
-  type TestCase,
-} from '../lib/testCases';
+import type { TestCase } from '../lib/testCases';
+import type { PrdArtifacts, PrdDoc } from '../lib/prd';
 import { downloadCasesExcel } from '../lib/excel';
 
 /**
- * Agents that can export their output to Excel, keyed by slug. Each entry
- * knows how to produce its dataset and how to title/name the workbook.
+ * Agents that can export their output to Excel, keyed by slug. The dataset
+ * is pulled from the active PRD's artifacts so each export reflects the
+ * selected document.
  */
 const EXCEL_EXPORTS: Record<
   string,
   {
-    build: () => TestCase[];
+    pick: (art: PrdArtifacts) => TestCase[];
     title: string;
     fileBase: string;
     sheetName: string;
@@ -24,25 +21,25 @@ const EXCEL_EXPORTS: Record<
   }
 > = {
   'test-case-generator': {
-    build: generateTestCases,
+    pick: (art) => art.testCases,
     title: 'QA Orchestration — Generated Test Cases',
     fileBase: 'test-cases',
     sheetName: 'Test Cases',
-    note: 'Full test-case set: 45 positive, 21 negative, 12 edge (100% AC coverage).',
+    note: 'Full test-case set generated from the active PRD (100% AC coverage).',
   },
   'smoke-identifier': {
-    build: generateSmokeCases,
+    pick: (art) => art.smoke,
     title: 'QA Orchestration — Smoke Suite',
     fileBase: 'smoke-suite',
     sheetName: 'Smoke Cases',
-    note: 'Critical-path smoke tests: login, checkout, and payment happy paths.',
+    note: 'Critical-path smoke tests derived from the active PRD.',
   },
   'regression-builder': {
-    build: generateRegressionCases,
+    pick: (art) => art.regression,
     title: 'QA Orchestration — Regression Suite',
     fileBase: 'regression-suite',
     sheetName: 'Regression Cases',
-    note: 'Regression suite across all feature areas (positive + negative coverage).',
+    note: 'Regression suite across all feature areas of the active PRD.',
   },
 };
 
@@ -50,7 +47,8 @@ interface Props {
   phase: Phase;
   agents: Agent[];
   selectedId: string | null;
-  prdFileName: string | null;
+  activePrd: PrdDoc | null;
+  artifacts: PrdArtifacts | null;
   onSelect: (id: string) => void;
   onRequestRun: (id: string) => void;
   onReset: (id: string) => void;
@@ -60,7 +58,8 @@ export default function PhaseView({
   phase,
   agents,
   selectedId,
-  prdFileName,
+  activePrd,
+  artifacts,
   onSelect,
   onRequestRun,
   onReset,
@@ -160,16 +159,17 @@ export default function PhaseView({
                     </button>
                   )}
                   {EXCEL_EXPORTS[agent.slug] &&
-                    agent.status === 'complete' && (
+                    agent.status === 'complete' &&
+                    artifacts && (
                       <button
                         onClick={() => {
                           const cfg = EXCEL_EXPORTS[agent.slug];
-                          downloadCasesExcel(cfg.build(), {
+                          downloadCasesExcel(cfg.pick(artifacts), {
                             title: cfg.title,
                             fileBase: cfg.fileBase,
                             sheetName: cfg.sheetName,
                             note: cfg.note,
-                            prdFileName,
+                            prdFileName: activePrd?.name ?? null,
                           });
                         }}
                         className="ml-auto flex items-center gap-1.5 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"

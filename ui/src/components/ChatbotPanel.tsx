@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Agent } from '../types';
+import type { PrdArtifacts, PrdDoc } from '../lib/prd';
 import {
   answerQuestion,
   isGreeting,
@@ -21,7 +22,8 @@ interface ChatMessage {
 interface Props {
   open: boolean;
   agents: Agent[];
-  prdFileName: string | null;
+  activePrd: PrdDoc | null;
+  artifacts: PrdArtifacts | null;
   onClose: () => void;
 }
 
@@ -43,7 +45,7 @@ const optionButtons = () =>
     return { id, label: t.label };
   });
 
-export default function ChatbotPanel({ open, agents, prdFileName, onClose }: Props) {
+export default function ChatbotPanel({ open, agents, activePrd, artifacts, onClose }: Props) {
   const [messages, setMessages] = useState<ChatMessage[]>([
     { role: 'bot', text: WELCOME_MESSAGE },
   ]);
@@ -57,7 +59,7 @@ export default function ChatbotPanel({ open, agents, prdFileName, onClose }: Pro
 
   if (!open) return null;
 
-  const ctx: KbContext = { agents, prdFileName };
+  const ctx: KbContext = { agents, activePrd, artifacts };
 
   function pushBot(text: string, options?: ChatMessage['options']) {
     setMessages((m) => [...m, { role: 'bot', text, options }]);

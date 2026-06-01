@@ -1,23 +1,23 @@
-import { useRef } from 'react';
 import type { AgentStatus } from '../types';
 import { STATUS_STYLES } from '../lib/status';
 
 interface Props {
-  prdFileName: string | null;
+  activePrdName: string | null;
+  prdCount: number;
   globalStatus: AgentStatus;
   globalLabel: string;
-  onUploadPrd: (file: File) => void;
+  onOpenPrdManager: () => void;
   onOpenChatbot: () => void;
 }
 
 export default function TopBar({
-  prdFileName,
+  activePrdName,
+  prdCount,
   globalStatus,
   globalLabel,
-  onUploadPrd,
+  onOpenPrdManager,
   onOpenChatbot,
 }: Props) {
-  const fileRef = useRef<HTMLInputElement>(null);
   const s = STATUS_STYLES[globalStatus];
 
   return (
@@ -45,27 +45,22 @@ export default function TopBar({
           {globalLabel}
         </div>
 
-        {/* PRD upload */}
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.doc,.docx,.md,.txt"
-          className="hidden"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) onUploadPrd(f);
-            e.target.value = '';
-          }}
-        />
+        {/* PRD manager */}
         <button
-          onClick={() => fileRef.current?.click()}
+          onClick={onOpenPrdManager}
           className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700"
+          title="Manage PRD documents"
         >
-          <span>⬆️</span>
-          {prdFileName ? (
-            <span className="max-w-[160px] truncate">{prdFileName}</span>
+          <span>📄</span>
+          {activePrdName ? (
+            <span className="max-w-[160px] truncate">{activePrdName}</span>
           ) : (
             'Upload PRD'
+          )}
+          {prdCount > 0 && (
+            <span className="rounded-full bg-slate-700 px-1.5 text-[10px] text-slate-300">
+              {prdCount}
+            </span>
           )}
         </button>
 

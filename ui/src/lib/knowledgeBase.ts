@@ -7,11 +7,15 @@
  * used for the Excel export.
  */
 import type { Agent } from '../types';
-import { generateTestCases, type Priority, type TestCase } from './testCases';
+import { type Priority, type TestCase } from './testCases';
+import type { PrdArtifacts, PrdDoc } from './prd';
 
 export interface KbContext {
   agents: Agent[];
-  prdFileName: string | null;
+  /** The currently selected PRD, or null if none. */
+  activePrd: PrdDoc | null;
+  /** Artifacts derived from the active PRD, or null if none. */
+  artifacts: PrdArtifacts | null;
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -71,33 +75,9 @@ export function isGreeting(text: string): boolean {
 // Grounded content
 // ─────────────────────────────────────────────────────────────────────
 
-const PRD_FEATURES = [
-  'Authentication — login, logout, session handling, password reset',
-  'Shopping Cart — add/remove items, update quantity, view subtotal',
-  'Checkout — address entry, shipping selection, order review',
-  'Payment — card authorisation, confirmation, failure handling',
-  'Order Management — order history, order detail, status tracking',
-];
-
-const PRD_ACCEPTANCE = [
-  'A valid user can authenticate and reach the dashboard.',
-  'Invalid credentials are rejected with a clear error message.',
-  'Items added to the cart reflect the correct quantity and subtotal.',
-  'Checkout shows accurate totals, taxes, and the chosen shipping option.',
-  'A valid card is authorised and returns a confirmation number.',
-  'Declined/timed-out payments are handled without losing the cart.',
-];
-
-const TEST_PLAN = {
-  scope:
-    'In scope: Authentication, Shopping Cart, Checkout, Payment, Order Management. Out of scope: admin console and third-party analytics.',
-  strategy:
-    'Risk-based testing. Priority order: Payment & Authentication (P0) → core commerce flows (P1) → validation/negative paths (P2) → edge/boundary (P3).',
-  environments: 'Dev, Staging (primary test target), and a Pre-prod smoke env.',
-  entryCriteria: 'Stories accepted, build deployed to Staging, test data seeded.',
-  exitCriteria:
-    '100% of acceptance criteria covered, 0 open P0/P1 defects, smoke suite green.',
-};
+/** Shown for any artifact-backed topic when no PRD is selected. */
+const NO_PRD =
+  'No PRD is selected yet. Upload a PRD and pick it in the PRD manager (📄 button, top-right), then run the agents — I will answer from that document.';
 
 /** The 15 QA agents, per the spec. */
 const QA_AGENTS: { name: string; role: string }[] = [
@@ -136,14 +116,6 @@ export interface Topic {
   answer: (ctx: KbContext, q: string) => string;
 }
 
-const FEATURE_NAMES = [
-  'Authentication',
-  'Shopping Cart',
-  'Checkout',
-  'Payment',
-  'Order Management',
-];
-
 function priorityCounts(cases: TestCase[]): Record<Priority, number> {
   return cases.reduce(
     (acc, c) => {
@@ -171,11 +143,14 @@ function priorityFromText(q: string): Priority | null {
   return null;
 }
 
-/** Build the detailed, possibly-filtered test-case answer. */
-function answerTestCases(q: string): string {
-  const all = generateTestCases();
+/** Build the detailed, possibly-filtered test-case answer from artifacts. */
+function answerTestCases(q: string, ctx: KbContext): string {
+  if (!ctx.artifacts || !ctx.activePrd) return NO_PRD;
+  const all = ctx.artifacts.testCases;
+  const featureNames = ctx.activePrd.profile.features;
+
   const pr = priorityFromText(q);
-  const feature = FEATURE_NAMES.find((f) => q.includes(f.toLowerCase()));
+  const feature = featureNames.find((f) => q.includes(f.toLowerCase()));
   let filtered = all;
   const labels: string[] = [];
 
@@ -201,12 +176,15 @@ function answerTestCases(q: string): string {
   // No filter → give the breakdown.
   if (labels.length === 0) {
     const counts = priorityCounts(all);
-    return `There are ${all.length} test cases (45 positive, 21 negative, 12 edge) covering ${FEATURE_NAMES.join(', ')}.\nBy priority:\n• ${counts['P0 - Critical'] ?? 0} P0 (Critical)\n• ${counts['P1 - High'] ?? 0} P1 (High)\n• ${counts['P2 - Medium'] ?? 0} P2 (Medium)\n• ${counts['P3 - Low'] ?? 0} P3 (Low)\nAsk for a priority (e.g. "P0 test cases") or a feature (e.g. "Payment test cases").`;
+    const pos = all.filter((c) => c.type === 'Positive').length;
+    const neg = all.filter((c) => c.type === 'Negative').length;
+    const edge = all.filter((c) => c.type === 'Edge').length;
+    return `From "${ctx.activePrd.name}" there are ${all.length} test cases (${pos} positive, ${neg} negative, ${edge} edge) covering ${featureNames.join(', ')}.\nBy priority:\n• ${counts['P0 - Critical'] ?? 0} P0 (Critical)\n• ${counts['P1 - High'] ?? 0} P1 (High)\n• ${counts['P2 - Medium'] ?? 0} P2 (Medium)\n• ${counts['P3 - Low'] ?? 0} P3 (Low)\nAsk for a priority (e.g. "P0 test cases") or a feature (e.g. "${featureNames[0]} test cases").`;
   }
 
   const scope = labels.join(', ') + ' ';
   if (filtered.length === 0) {
-    return `No ${scope}test cases matched. Try "P1 test cases" or "Payment test cases".`;
+    return `No ${scope}test cases matched. Try "P1 test cases" or "${featureNames[0]} test cases".`;
   }
   return `Found ${filtered.length} ${scope}test case(s):\n${listCases(filtered)}`;
 }
@@ -221,10 +199,12 @@ export const TOPICS: Topic[] = [
       'acceptance', 'criteria',
     ],
     answer: (ctx, q) => {
+      if (!ctx.activePrd) return NO_PRD;
+      const p = ctx.activePrd.profile;
       if (/acceptance|criteria/.test(q)) {
-        return `Key acceptance criteria from the PRD:\n${PRD_ACCEPTANCE.map((a, i) => `${i + 1}. ${a}`).join('\n')}`;
+        return `Acceptance criteria from "${ctx.activePrd.name}":\n${p.acceptanceCriteria.map((a, i) => `${i + 1}. ${a}`).join('\n')}`;
       }
-      return `From the PRD${ctx.prdFileName ? ` (${ctx.prdFileName})` : ''}, these features & requirements were identified:\n${PRD_FEATURES.map((f) => `• ${f}`).join('\n')}\n\nAsk about "acceptance criteria" to go deeper.`;
+      return `From the PRD "${ctx.activePrd.name}", these ${p.features.length} features were identified:\n${p.features.map((f) => `• ${f}`).join('\n')}\n\nCritical features: ${p.criticalFeatures.join(', ')}.\nAsk about "acceptance criteria" to go deeper.`;
     },
   },
   {
@@ -234,8 +214,11 @@ export const TOPICS: Topic[] = [
       'test plan', 'testing scope', 'strategy', 'entry criteria', 'exit criteria',
       'test environment', 'environment', 'timeline', 'phases', 'objective',
     ],
-    answer: () =>
-      `Test Plan summary:\n• Scope: ${TEST_PLAN.scope}\n• Strategy: ${TEST_PLAN.strategy}\n• Environments: ${TEST_PLAN.environments}\n• Entry criteria: ${TEST_PLAN.entryCriteria}\n• Exit criteria: ${TEST_PLAN.exitCriteria}`,
+    answer: (ctx) => {
+      if (!ctx.artifacts || !ctx.activePrd) return NO_PRD;
+      const tp = ctx.artifacts.testPlan;
+      return `Test Plan for "${ctx.activePrd.name}":\n• Scope: ${tp.scope}\n• Strategy: ${tp.strategy}\n• Environments: ${tp.environments}\n• Entry criteria: ${tp.entryCriteria}\n• Exit criteria: ${tp.exitCriteria}`;
+    },
   },
   {
     id: 'test-cases',
@@ -243,10 +226,34 @@ export const TOPICS: Topic[] = [
     keywords: [
       'test case', 'testcase', 'test scenario', 'scenario', 'test steps', 'steps',
       'expected result', 'module testing', 'test script', 'cases',
-      'p0', 'p1', 'p2', 'p3', 'positive', 'negative', 'edge',
-      ...FEATURE_NAMES.map((f) => f.toLowerCase()),
+      'p0', 'p1', 'p2', 'p3', 'positive', 'negative', 'edge', 'smoke', 'regression',
     ],
-    answer: (_ctx, q) => answerTestCases(q),
+    answer: (ctx, q) => {
+      if (!ctx.artifacts || !ctx.activePrd) return NO_PRD;
+      if (/\bsmoke\b/.test(q)) {
+        return `Smoke suite (${ctx.artifacts.smoke.length} cases) from "${ctx.activePrd.name}":\n${listCases(ctx.artifacts.smoke)}`;
+      }
+      if (/\bregression\b/.test(q)) {
+        return `Regression suite (${ctx.artifacts.regression.length} cases) from "${ctx.activePrd.name}":\n${listCases(ctx.artifacts.regression)}`;
+      }
+      return answerTestCases(q, ctx);
+    },
+  },
+  {
+    id: 'defects',
+    label: '🐞 Defects & Jira',
+    keywords: [
+      'defect', 'defects', 'bug', 'bugs', 'jira', 'ticket', 'tickets', 'story', 'stories', 'issue',
+    ],
+    answer: (ctx) => {
+      if (!ctx.artifacts || !ctx.activePrd) return NO_PRD;
+      const { defects, bugs, stories } = ctx.artifacts;
+      const storyLines = stories.map((s) => `• ${s.key} (${s.type}) — ${s.summary}`).join('\n');
+      const bugLines = bugs.length
+        ? bugs.map((b) => `• ${b.key} (Bug) — ${b.summary}`).join('\n')
+        : '• none';
+      return `Jira & defects for "${ctx.activePrd.name}":\nStories (${stories.length}):\n${storyLines}\n\nDefects/Bugs (${defects.length}):\n${bugLines}`;
+    },
   },
   {
     id: 'agents',
@@ -287,7 +294,10 @@ export const TOPICS: Topic[] = [
         exec?.status === 'complete' && exec.lastOutput
           ? `\n\nLatest execution: ${exec.lastOutput}`
           : '';
-      return `Reports & Dashboards:\n• Execution report — pass/fail/skip counts, duration, and per-suite results.\n• Coverage — 100% of acceptance criteria covered (78 test cases).\n• Defect report — open defects by severity, linked to failing tests.\n• Trend dashboard — pass-rate and defect trends across runs.\nThe live dashboard shows each agent's status and a real-time log stream.${live}`;
+      const coverage = ctx.artifacts
+        ? `100% of acceptance criteria covered (${ctx.artifacts.testCases.length} test cases)`
+        : 'available once a PRD is selected and test cases are generated';
+      return `Reports & Dashboards:\n• Execution report — pass/fail/skip counts, duration, and per-suite results.\n• Coverage — ${coverage}.\n• Defect report — open defects by severity, linked to failing tests.\n• Trend dashboard — pass-rate and defect trends across runs.\nThe live dashboard shows each agent's status and a real-time log stream.${live}`;
     },
   },
 ];
@@ -297,6 +307,7 @@ export const OPTION_TOPIC_IDS = [
   'prd',
   'test-plan',
   'test-cases',
+  'defects',
   'agents',
   'automation',
   'reports',

@@ -1,9 +1,10 @@
 /**
- * Structured test-case dataset for the Test Case Generator (agent 04).
+ * Test-case generation engine.
  *
- * The agent's summary output is "78 test cases (45 positive, 21 negative,
- * 12 edge), 100% AC coverage". This module materialises that summary into
- * concrete rows so the user can download a real test-case document.
+ * Cases are derived from a PRD's feature list, so different PRDs produce
+ * different suites. Given N features, each feature yields 9 positive,
+ * 4 negative, and 2 edge cases (15/feature), keeping totals deterministic
+ * and traceable to the source document.
  */
 
 export type CaseType = 'Positive' | 'Negative' | 'Edge';
@@ -22,26 +23,17 @@ export interface TestCase {
   acRef: string;
 }
 
-/** Feature areas the cases are distributed across. */
-const FEATURES = [
-  'Authentication',
-  'Shopping Cart',
-  'Checkout',
-  'Payment',
-  'Order Management',
-] as const;
-
-type Feature = (typeof FEATURES)[number];
-
-/** Per-feature copy used to make each generated row read realistically. */
-const FEATURE_COPY: Record<
-  Feature,
-  { action: string; data: string; expect: string }
-> = {
+/** Rich, human-sounding copy for well-known feature names. */
+const KNOWN_COPY: Record<string, { action: string; data: string; expect: string }> = {
   Authentication: {
     action: 'navigate to the login page and submit credentials',
     data: 'username=qa_user, password=Valid@123',
     expect: 'the user is authenticated and redirected to the dashboard',
+  },
+  Login: {
+    action: 'submit valid login credentials',
+    data: 'username=qa_user, password=Valid@123',
+    expect: 'the user is signed in successfully',
   },
   'Shopping Cart': {
     action: 'add an in-stock product to the cart and view the cart',
@@ -63,11 +55,42 @@ const FEATURE_COPY: Record<
     data: 'orderId=ORD-50012',
     expect: 'the order details and status are displayed accurately',
   },
+  Search: {
+    action: 'enter a query and run a search',
+    data: 'query="wireless headphones"',
+    expect: 'relevant results are returned and ranked correctly',
+  },
+  Notifications: {
+    action: 'trigger an event that should notify the user',
+    data: 'channel=email, event=order_shipped',
+    expect: 'the notification is delivered through the chosen channel',
+  },
 };
 
-const TYPE_TEMPLATES: Record<
+function copyFor(feature: string): { action: string; data: string; expect: string } {
+  return (
+    KNOWN_COPY[feature] ?? {
+      action: `exercise the ${feature} functionality with valid input`,
+      data: `valid ${feature.toLowerCase()} input`,
+      expect: `${feature} behaves exactly as specified in the requirements`,
+    }
+  );
+}
+
+function cap(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function priorityFor(feature: string, type: CaseType, criticalFeatures: string[]): Priority {
+  if (type === 'Positive' && criticalFeatures.includes(feature)) return 'P0 - Critical';
+  if (type === 'Positive') return 'P1 - High';
+  if (type === 'Negative') return 'P2 - Medium';
+  return 'P3 - Low';
+}
+
+const TYPE_BUILDERS: Record<
   CaseType,
-  (f: Feature, copy: (typeof FEATURE_COPY)[Feature]) => Pick<
+  (f: string, c: { action: string; data: string; expect: string }) => Pick<
     TestCase,
     'title' | 'preconditions' | 'steps' | 'testData' | 'expectedResult'
   >
@@ -83,7 +106,7 @@ const TYPE_TEMPLATES: Record<
     title: `${f}: invalid input is rejected`,
     preconditions: 'User is on the relevant screen with invalid/incomplete data.',
     steps: `1. Open the ${f} module.\n2. Attempt to ${c.action} with invalid data.\n3. Observe the error handling.`,
-    testData: c.data.replace(/Valid@123|4111 1111 1111 1111|PRD-1001/, 'INVALID'),
+    testData: `${c.data} → tampered to INVALID`,
     expectedResult:
       'A clear validation error is shown; the action is blocked and no state changes.',
   }),
@@ -97,86 +120,97 @@ const TYPE_TEMPLATES: Record<
   }),
 };
 
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1);
-}
+/** Cases generated per feature, by type. */
+const PER_FEATURE: Array<[CaseType, number]> = [
+  ['Positive', 9],
+  ['Negative', 4],
+  ['Edge', 2],
+];
 
-function priorityFor(feature: Feature, type: CaseType): Priority {
-  if (type === 'Positive' && (feature === 'Payment' || feature === 'Authentication'))
-    return 'P0 - Critical';
-  if (type === 'Positive') return 'P1 - High';
-  if (type === 'Negative') return 'P2 - Medium';
-  return 'P3 - Low';
+export interface CaseSetOptions {
+  /** Features considered business-critical (their positives become P0). */
+  criticalFeatures?: string[];
+  /** Prefix for case ids, e.g. "TC". */
+  idPrefix?: string;
 }
 
 /**
- * Generate the full, deterministic test-case set: 45 positive, 21 negative,
- * 12 edge = 78 cases, round-robin across the five feature areas.
+ * Generate the full test-case set for a list of features.
+ * For 5 features → 45 positive, 20 negative, 10 edge = 75 cases.
  */
-export function generateTestCases(): TestCase[] {
-  const distribution: Array<[CaseType, number]> = [
-    ['Positive', 45],
-    ['Negative', 21],
-    ['Edge', 12],
-  ];
-
+export function generateTestCasesForFeatures(
+  features: string[],
+  opts: CaseSetOptions = {}
+): TestCase[] {
+  const critical = opts.criticalFeatures ?? features.slice(0, 2);
+  const prefix = opts.idPrefix ?? 'TC';
   const cases: TestCase[] = [];
   let n = 0;
+  let acCounter = 0;
 
-  for (const [type, count] of distribution) {
-    for (let i = 0; i < count; i++) {
-      const feature = FEATURES[n % FEATURES.length];
-      const copy = FEATURE_COPY[feature];
-      const t = TYPE_TEMPLATES[type](feature, copy);
-      n += 1;
-      cases.push({
-        id: `TC-${String(n).padStart(3, '0')}`,
-        feature,
-        type,
-        priority: priorityFor(feature, type),
-        acRef: `AC-${String(((n - 1) % 34) + 1).padStart(2, '0')}`,
-        ...t,
-      });
+  for (const [type, count] of PER_FEATURE) {
+    for (const feature of features) {
+      const copy = copyFor(feature);
+      for (let i = 0; i < count; i++) {
+        n += 1;
+        acCounter += 1;
+        const built = TYPE_BUILDERS[type](feature, copy);
+        cases.push({
+          id: `${prefix}-${String(n).padStart(3, '0')}`,
+          feature,
+          type,
+          priority: priorityFor(feature, type, critical),
+          acRef: `AC-${String(((acCounter - 1) % (features.length * 7)) + 1).padStart(2, '0')}`,
+          ...built,
+        });
+      }
     }
   }
-
   return cases;
 }
 
-/**
- * The smoke suite: 9 critical-path tests covering login, checkout, and
- * payment happy paths — matching the Smoke Identifier's output. Selected
- * from the positive P0/P1 cases of the critical features.
- */
-export function generateSmokeCases(): TestCase[] {
-  const all = generateTestCases();
-  const critical = ['Authentication', 'Checkout', 'Payment'];
-  const smoke = all.filter(
+/** Smoke subset: positive P0/P1 cases of the critical features, capped. */
+export function smokeFromCases(cases: TestCase[], cap = 9): TestCase[] {
+  const smoke = cases.filter(
     (c) =>
       c.type === 'Positive' &&
-      critical.includes(c.feature) &&
       (c.priority === 'P0 - Critical' || c.priority === 'P1 - High')
   );
-  // Cap at 9 and renumber as SMK-xxx for the smoke document.
-  return smoke.slice(0, 9).map((c, i) => ({
+  return smoke.slice(0, cap).map((c, i) => ({
     ...c,
     id: `SMK-${String(i + 1).padStart(3, '0')}`,
     title: c.title.replace('valid flow succeeds', 'critical-path smoke check'),
   }));
 }
 
-/**
- * The regression suite: 64 cases across the 5 areas, excluding low-value
- * edge duplicates — matching the Regression Builder's output. Renumbered
- * as REG-xxx for the regression document.
- */
-export function generateRegressionCases(): TestCase[] {
-  const all = generateTestCases();
-  // Keep positives + negatives (the stable regression core), drop edge cases,
-  // then take 64 to match the published suite size.
-  const core = all.filter((c) => c.type !== 'Edge').slice(0, 64);
+/** Regression suite: positives + negatives (stable core), excluding edges. */
+export function regressionFromCases(cases: TestCase[]): TestCase[] {
+  const core = cases.filter((c) => c.type !== 'Edge');
   return core.map((c, i) => ({
     ...c,
     id: `REG-${String(i + 1).padStart(3, '0')}`,
   }));
+}
+
+// ── Backwards-compatible default (e-commerce) helpers ───────────────
+const DEFAULT_FEATURES = [
+  'Authentication',
+  'Shopping Cart',
+  'Checkout',
+  'Payment',
+  'Order Management',
+];
+
+export function generateTestCases(): TestCase[] {
+  return generateTestCasesForFeatures(DEFAULT_FEATURES, {
+    criticalFeatures: ['Authentication', 'Payment'],
+  });
+}
+
+export function generateSmokeCases(): TestCase[] {
+  return smokeFromCases(generateTestCases());
+}
+
+export function generateRegressionCases(): TestCase[] {
+  return regressionFromCases(generateTestCases());
 }
