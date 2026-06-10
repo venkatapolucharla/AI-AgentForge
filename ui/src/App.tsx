@@ -17,6 +17,7 @@ import ConfirmModal from './components/ConfirmModal';
 import LogPanel from './components/LogPanel';
 import ChatbotPanel from './components/ChatbotPanel';
 import PrdManager from './components/PrdManager';
+import OrchestratorPanel from './components/OrchestratorPanel';
 
 /** Read an uploaded file as text (best-effort for binary formats). */
 function readFileText(file: File): Promise<string> {
@@ -42,6 +43,7 @@ export default function App() {
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [chatbotOpen, setChatbotOpen] = useState(false);
   const [prdManagerOpen, setPrdManagerOpen] = useState(false);
+  const [orchestratorOpen, setOrchestratorOpen] = useState(false);
 
   // ── Multi-PRD state ────────────────────────────────────────────
   const [prds, setPrds] = useState<PrdDoc[]>([]);
@@ -231,6 +233,7 @@ export default function App() {
         globalStatus={globalStatus}
         globalLabel={globalLabel}
         onOpenPrdManager={() => setPrdManagerOpen(true)}
+        onOpenOrchestrator={() => setOrchestratorOpen(true)}
         onOpenChatbot={() => setChatbotOpen(true)}
       />
 
@@ -281,6 +284,15 @@ export default function App() {
         onUpload={uploadPrds}
         onSelect={selectPrd}
         onDelete={deletePrd}
+      />
+      <OrchestratorPanel
+        open={orchestratorOpen}
+        agents={agents}
+        activePrd={activePrd}
+        artifacts={artifacts}
+        onClose={() => setOrchestratorOpen(false)}
+        onAgentUpdate={patchAgent}
+        onLog={addLog}
       />
     </div>
   );

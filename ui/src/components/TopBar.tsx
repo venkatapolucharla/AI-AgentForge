@@ -7,6 +7,7 @@ interface Props {
   globalStatus: AgentStatus;
   globalLabel: string;
   onOpenPrdManager: () => void;
+  onOpenOrchestrator: () => void;
   onOpenChatbot: () => void;
 }
 
@@ -16,6 +17,7 @@ export default function TopBar({
   globalStatus,
   globalLabel,
   onOpenPrdManager,
+  onOpenOrchestrator,
   onOpenChatbot,
 }: Props) {
   const s = STATUS_STYLES[globalStatus];
@@ -62,6 +64,16 @@ export default function TopBar({
               {prdCount}
             </span>
           )}
+        </button>
+
+        {/* Master Orchestrator */}
+        <button
+          onClick={onOpenOrchestrator}
+          className="flex items-center gap-2 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:brightness-110"
+          title="Run the full 15-agent pipeline"
+        >
+          <span>🎛️</span>
+          Run Pipeline
         </button>
 
         {/* Chatbot trigger */}
