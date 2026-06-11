@@ -31,13 +31,6 @@
       "dest": "ui/dist/index.html"
     }
   ],
-  "functions": {
-    "api/**/*.ts": {
-      "runtime": "nodejs18.x",
-      "memory": 512,
-      "timeout": 30
-    }
-  },
   "outputDirectory": "ui/dist",
   "redirects": [
     {
