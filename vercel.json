@@ -7,19 +7,7 @@
     "NODE_ENV": "production",
     "VITE_API_URL": "https://ai-agent-forge.vercel.app/api"
   },
-  "builds": [
-    {
-      "src": "ui/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "ui/dist"
-      }
-    },
-    {
-      "src": "server/src/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
+  "outputDirectory": "ui/dist",
   "routes": [
     {
       "src": "/api/(.*)",
