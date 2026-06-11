@@ -90,7 +90,7 @@ export default function App() {
         created.push(createPrdDoc(file.name, text, humanSize(file.size)));
       }
       setPrds((prev) => [...prev, ...created]);
-      const prdAgent = AGENTS.find((a) => a.slug === 'prd-analyser')!;
+      const prdAgent = AGENTS.find((a) => a.slug === 'blueprint-architect')!;
       created.forEach((c) =>
         addLog(
           prdAgent,
@@ -111,7 +111,7 @@ export default function App() {
       setActivePrdId(id);
       resetAllAgents();
       const prd = prds.find((p) => p.id === id);
-      const prdAgent = AGENTS.find((a) => a.slug === 'prd-analyser')!;
+      const prdAgent = AGENTS.find((a) => a.slug === 'blueprint-architect')!;
       if (prd) {
         addLog(
           prdAgent,
