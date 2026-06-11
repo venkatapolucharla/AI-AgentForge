@@ -1,13 +1,69 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "buildCommand": "npm run build --prefix ui && npm run typecheck --prefix server",
   "framework": null,
-  "installCommand": "npm install --prefix ui",
-  "buildCommand": "npm run build --prefix ui",
-  "outputDirectory": "ui/dist",
-  "build": {
-    "env": {
-      "VITE_API_URL": "https://qa-orchestration-server.onrender.com"
+  "env": {
+    "NODE_ENV": "production",
+    "VITE_API_URL": "@qa_api_url"
+  },
+  "builds": [
+    {
+      "src": "ui/package.json",
+      "use": "@vercel/static-build",
+      "config": {
+        "distDir": "ui/dist"
+      }
+    },
+    {
+      "src": "server/src/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/api/(.*)",
+      "dest": "/server/src/index.ts",
+      "methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
+    },
+    {
+      "src": "/(.*)",
+      "dest": "ui/dist/index.html"
+    }
+  ],
+  "functions": {
+    "api/**/*.ts": {
+      "runtime": "nodejs18.x",
+      "memory": 512,
+      "timeout": 30
     }
   },
-  "rewrites": [{ "source": "/(.*)", "destination": "/index.html" }]
+  "outputDirectory": "ui/dist",
+  "redirects": [
+    {
+      "source": "/health",
+      "destination": "/api/health",
+      "permanent": false
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
+      ]
+    }
+  ]
 }
+

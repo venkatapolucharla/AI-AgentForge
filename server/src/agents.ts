@@ -2,10 +2,9 @@ import { readFile } from 'node:fs/promises';
 import type { AgentDef } from './types.js';
 
 /**
- * The 15 agents. Most stream a few descriptive steps and return a
- * representative output; the PRD Analyser does real work by reading the
- * uploaded document. Each `run` handler is the seam where you'd call the
- * real integration (Jira / Jenkins / git / email) described in ../agents/*.md.
+ * The 8 core agents (Vercel-optimized). Streamlined for serverless execution.
+ * Each `run` handler is the seam where you'd call real integrations
+ * (JIRA / Playwright / webhooks) described in ../agents/*.md.
  */
 export const AGENT_DEFS: AgentDef[] = [
   {
@@ -48,155 +47,70 @@ export const AGENT_DEFS: AgentDef[] = [
   },
   {
     id: '03',
-    slug: 'test-plan-creator',
-    name: 'Test Plan Creator',
-    phase: 'test-design',
-    steps: [
-      'Reading stories and acceptance criteria…',
-      'Defining scope, strategy, and environments…',
-      'Drafting entry/exit criteria…',
-    ],
-    output: 'Test plan drafted: 5 test areas, 3 environments, risk-based prioritisation applied.',
-  },
-  {
-    id: '04',
     slug: 'test-case-generator',
     name: 'Test Case Generator',
     phase: 'test-design',
     steps: [
       'Deriving positive, negative, and edge cases…',
+      'Analyzing boundary values and field constraints…',
       'Adding steps, test data, and expected results…',
-      'Attaching cases back to Jira stories…',
     ],
     output: 'Generated 78 test cases (45 positive, 21 negative, 12 edge). Coverage: 100% of ACs.',
   },
   {
-    id: '05',
-    slug: 'smoke-identifier',
-    name: 'Smoke Identifier',
-    phase: 'test-design',
-    steps: [
-      'Scoring cases by business criticality…',
-      'Selecting the minimal critical-path suite…',
-      'Tagging selected cases with "smoke"…',
-    ],
-    output: 'Selected 9 smoke tests covering login, checkout, and payment happy paths.',
-  },
-  {
-    id: '06',
-    slug: 'regression-builder',
-    name: 'Regression Builder',
-    phase: 'test-design',
-    steps: [
-      'Grouping cases by feature area and defect density…',
-      'Deduplicating overlapping coverage…',
-      'Publishing the regression suite definition…',
-    ],
-    output: 'Regression suite built: 64 cases across 5 areas, est. run time 42 min.',
-  },
-  {
-    id: '07',
+    id: '04',
     slug: 'test-executor',
     name: 'Test Executor',
     phase: 'execution',
     steps: [
-      'Provisioning the target environment…',
-      'Running smoke suite (9 cases)…',
-      'Running regression suite (64 cases)…',
-      'Collecting logs and screenshots…',
+      'Provisioning the test environment…',
+      'Running smoke tests + regression suite…',
+      'Collecting execution logs and screenshots…',
     ],
-    output: 'Run complete: 70 passed, 3 failed, 0 skipped (73 total) in 38m 12s.',
+    output: 'Execution complete: 70 passed, 3 failed, 0 skipped (73 total) in 38m 12s.',
   },
   {
-    id: '08',
+    id: '05',
     slug: 'defect-analyser',
     name: 'Defect Analyser',
     phase: 'execution',
     steps: [
-      'Inspecting failure logs and diffs…',
-      'Clustering failures by suspected root cause…',
-      'Classifying product defects vs. test/env issues…',
+      'Analyzing failure logs and test diffs…',
+      'Extracting root cause and severity…',
+      'Drafting JIRA defect details…',
     ],
-    output: '3 failures analysed → 2 product defects (1 high, 1 medium), 1 flaky test.',
+    output: '3 failures analyzed → 2 product defects (1 high, 1 medium), 1 flaky test.',
   },
   {
-    id: '09',
-    slug: 'defect-creator',
-    name: 'Defect Creator',
-    phase: 'execution',
-    steps: [
-      'Drafting bug reports with steps and evidence…',
-      'Linking bugs to failing tests and parent stories…',
-      'Creating issues in project "QA"…',
-    ],
-    output: 'Filed 2 bugs: QA-201 (High, payment timeout), QA-202 (Medium, cart total).',
-  },
-  {
-    id: '10',
+    id: '06',
     slug: 'automation-developer',
     name: 'Automation Developer',
     phase: 'automation',
     steps: [
-      'Converting manual cases into Playwright specs…',
-      'Applying Page Object Model and fixtures…',
-      'Writing files into tests/…',
+      'Converting test cases to Playwright TypeScript…',
+      'Implementing Page Object Model pattern…',
+      'Generating specs in tests/ folder…',
     ],
-    output: 'Generated 9 Playwright specs (1,240 LoC) using POM + fixtures in tests/.',
+    output: 'Generated 9 Playwright specs (1,240 LoC) with POM + fixtures.',
   },
   {
-    id: '11',
+    id: '07',
     slug: 'code-reviewer',
     name: 'Code Reviewer',
     phase: 'automation',
     steps: [
-      'Checking selectors, waits, and assertions…',
-      'Flagging flakiness risks and anti-patterns…',
-      'Compiling review summary…',
+      'Reviewing selectors, waits, and assertions…',
+      'Flagging anti-patterns and flakiness risks…',
+      'Validating TypeScript types and best practices…',
     ],
-    output: 'Review done: 4 suggestions, 1 blocking (hard-coded wait in checkout.spec.ts).',
+    output: 'Review complete: 4 suggestions, 1 blocking (hard-coded wait detected).',
   },
   {
-    id: '12',
-    slug: 'git-commit',
-    name: 'Git Commit',
-    phase: 'automation',
-    steps: [
-      'Staging generated spec files…',
-      'Creating conventional commit on branch "qa/auto-suite"…',
-      'Pushing to origin and opening pull request…',
-    ],
-    output: 'Committed 9 files to branch "qa/auto-suite" → PR #58 opened.',
-  },
-  {
-    id: '13',
-    slug: 'jenkins-trigger',
-    name: 'Jenkins Trigger',
-    phase: 'cicd',
-    steps: [
-      'Calling Jenkins job with branch and suite params…',
-      'Build queued — polling status…',
-      'Archiving artifacts and HTML report…',
-    ],
-    output: 'Jenkins build #312 SUCCESS in 6m 04s — artifacts and HTML report archived.',
-  },
-  {
-    id: '14',
-    slug: 'report-sender',
-    name: 'Report Sender',
-    phase: 'cicd',
-    steps: [
-      'Compiling execution results, defects, and CI status…',
-      'Rendering the HTML summary report…',
-      'Sending to the QA distribution list…',
-    ],
-    output: 'Report emailed to qa-team@company.com — 5 recipients, delivered.',
-  },
-  {
-    id: '15',
+    id: '08',
     slug: 'qa-chatbot',
     name: 'QA Chatbot',
-    phase: 'cicd',
-    steps: ['Opening chat session over orchestration state…'],
-    output: 'Chat session ready.',
+    phase: 'support',
+    steps: ['Initializing chat interface…', 'Loading QA platform knowledge base…'],
+    output: 'Chat session ready. Ask about PRD, test cases, agents, or reports.',
   },
 ];

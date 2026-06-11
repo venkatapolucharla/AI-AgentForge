@@ -19,14 +19,21 @@ Before executing the following tasks, you MUST:
 - [ ] Jenkins job trigger (manual or scheduled)
 - [ ] Sending reports to team members
 
-## Agent Execution Order
-PRD Analyser → JIRA Story Creator* → Test Plan Creator → 
-Test Case Generator → Smoke Identifier → Regression Builder →
-Test Executor → Defect Analyser → Defect Creator* →
-Automation Developer* → Code Reviewer → Git Commit* →
-Jenkins Trigger* → Report Sender* → QA Chatbot
+## Agent Execution Order (8-Agent Streamlined)
+PRD Analyser → JIRA Story Creator* → Test Case Generator → 
+Test Executor → Defect Analyser → Automation Developer* → 
+Code Reviewer → QA Chatbot
 
 (* = confirmation required)
+
+## Removed Agents (Consolidated)
+- Test Plan Creator → merged into Test Case Generator
+- Smoke Identifier → part of Test Executor
+- Regression Builder → part of Test Executor
+- Defect Creator → output of Defect Analyser
+- Git Commit → standalone utility module
+- Jenkins Trigger → Vercel webhooks/CI integration
+- Report Sender → REST API endpoint
 
 ## Agent Communication Protocol
 Each agent outputs a structured JSON handoff:
