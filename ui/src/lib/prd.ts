@@ -10,6 +10,7 @@
  */
 import {
   generateTestCasesForFeatures,
+  generateTestCasesFromRequirements,
   regressionFromCases,
   smokeFromCases,
   type TestCase,
@@ -26,11 +27,27 @@ export interface PrdDoc {
   profile: PrdProfile;
 }
 
+/** A single requirement extracted verbatim from the PRD, with its source. */
+export interface Requirement {
+  /** Stable id, e.g. "REQ-03". */
+  id: string;
+  /** The feature/section this requirement falls under. */
+  feature: string;
+  /** The exact requirement text as found in the document. */
+  text: string;
+  /** Literal data tokens found in the requirement (numbers, quoted values…). */
+  dataTokens: string[];
+}
+
 export interface PrdProfile {
   title: string;
   features: string[];
   acceptanceCriteria: string[];
   criticalFeatures: string[];
+  /** Requirements pulled directly from the PRD text (no assumptions). */
+  requirements: Requirement[];
+  /** True when the document yielded usable requirement statements. */
+  grounded: boolean;
 }
 
 export interface Defect {
@@ -157,26 +174,116 @@ function deriveTitle(name: string, text: string): string {
   return name.replace(/\.[a-z0-9]+$/i, '');
 }
 
+/** Strip list/heading markers and trailing punctuation from a line. */
+function cleanStatement(line: string): string {
+  return line
+    .replace(/^#{1,6}\s+/, '')
+    .replace(/^\d+[.)]\s+/, '')
+    .replace(/^[-*•]\s+/, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Pull literal data tokens (numbers, quoted strings, key=value) from text. */
+function extractDataTokens(text: string): string[] {
+  const tokens = new Set<string>();
+  // Quoted strings.
+  for (const m of text.matchAll(/[“"']([^“"']{2,40})[”"']/g)) tokens.add(m[1]);
+  // key=value or key: value pairs.
+  for (const m of text.matchAll(/([A-Za-z][\w ]{1,20})\s*[:=]\s*([^\s,;.]{1,30})/g))
+    tokens.add(`${m[1].trim()}=${m[2].trim()}`);
+  // Standalone numbers / ranges / limits (e.g. "max 10", "256 characters").
+  for (const m of text.matchAll(/\b(\d[\d,.]*\s*(?:%|chars?|characters?|MB|KB|seconds?|mins?|items?|days?)?)\b/gi))
+    tokens.add(m[1].trim());
+  return [...tokens].slice(0, 6);
+}
+
+/**
+ * Extract requirement statements directly from the PRD text. A line/sentence
+ * qualifies if it sits under a feature heading AND either uses requirement
+ * language (shall/must/should/will/can/support/allow/enable/validate/etc.)
+ * or is an explicit bullet/numbered item. Nothing is invented.
+ */
+function extractRequirements(text: string, features: string[]): Requirement[] {
+  const lines = text.split(/\r?\n/);
+  const reqWords =
+    /\b(shall|must|should|will|can|cannot|allow|allows|enable|enables|support|supports|require|requires|validate|validates|display|displays|provide|provides|generate|generates|reject|rejects|prevent|prevents|ensure|ensures|verify|verifies|return|returns|restrict|restricts)\b/i;
+  const out: Requirement[] = [];
+  let currentFeature = features[0] ?? 'General';
+  let n = 0;
+
+  const isHeading = (l: string) => /^(#{1,6}\s+|\d+[.)]\s+)/.test(l.trim());
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    if (!line) continue;
+
+    // Track the active feature from headings.
+    if (isHeading(line)) {
+      const h = cleanStatement(line);
+      const match = features.find((f) => f.toLowerCase() === titleCase(h).toLowerCase());
+      if (match) currentFeature = match;
+      // A heading itself isn't a requirement unless it also reads like one.
+      if (!reqWords.test(h)) continue;
+    }
+
+    const isBullet = /^[-*•]\s+/.test(line) || /^\d+[.)]\s+/.test(line);
+    const stmt = cleanStatement(line);
+    if (stmt.length < 8 || stmt.split(' ').length < 3) continue;
+
+    // Accept bullets, or any sentence that uses requirement language.
+    if (isBullet || reqWords.test(stmt)) {
+      // Split a bullet line into sentences so each requirement is atomic.
+      const sentences = stmt.split(/(?<=[.;])\s+/).map((s) => s.trim()).filter(Boolean);
+      for (const s of sentences) {
+        if (s.split(' ').length < 3) continue;
+        if (!isBullet && !reqWords.test(s)) continue;
+        n += 1;
+        out.push({
+          id: `REQ-${String(n).padStart(2, '0')}`,
+          feature: currentFeature,
+          text: s.replace(/[.;]+$/, '').trim(),
+          dataTokens: extractDataTokens(s),
+        });
+      }
+    }
+  }
+  return out;
+}
+
 export function buildProfile(name: string, text: string): PrdProfile {
   const features = extractFeatures(text);
-  const acceptanceCriteria = features.flatMap((f) => [
-    `A valid ${f.toLowerCase()} action completes successfully and is reflected in the UI.`,
-    `Invalid ${f.toLowerCase()} input is rejected with a clear, actionable message.`,
-  ]);
+  const requirements = extractRequirements(text, features);
+  const grounded = requirements.length > 0;
+
+  // Acceptance criteria come from the real requirements when available;
+  // otherwise we report that the document lacked extractable requirements
+  // rather than inventing them.
+  const acceptanceCriteria = grounded
+    ? requirements.map((r) => r.text)
+    : [];
+
   return {
     title: deriveTitle(name, text),
     features,
     acceptanceCriteria,
     criticalFeatures: features.slice(0, 2),
+    requirements,
+    grounded,
   };
 }
 
 // ── Artifact derivation ─────────────────────────────────────────────
 
 export function buildArtifacts(profile: PrdProfile): PrdArtifacts {
-  const testCases = generateTestCasesForFeatures(profile.features, {
-    criticalFeatures: profile.criticalFeatures,
-  });
+  // STRICT MODE: when the PRD yielded real requirements, every test case is
+  // grounded in that verbatim text. Otherwise we fall back to feature-level
+  // generation (legacy/sample PRDs with no extractable statements).
+  const testCases = profile.grounded
+    ? generateTestCasesFromRequirements(profile.requirements, profile.criticalFeatures)
+    : generateTestCasesForFeatures(profile.features, {
+        criticalFeatures: profile.criticalFeatures,
+      });
   const smoke = smokeFromCases(testCases);
   const regression = regressionFromCases(testCases);
 
@@ -262,13 +369,17 @@ export function agentOutputFor(
   };
   switch (slug) {
     case 'prd-analyser':
-      return `Analysed "${prd.name}" → ${f.length} features (${f.join(', ')}) and ${prd.profile.acceptanceCriteria.length} acceptance criteria.`;
+      return prd.profile.grounded
+        ? `Analysed "${prd.name}" → ${f.length} features (${f.join(', ')}) and ${prd.profile.requirements.length} requirements extracted directly from the document.`
+        : `Analysed "${prd.name}" → ${f.length} features (${f.join(', ')}). No explicit requirement statements found in the document; generation will fall back to feature-level coverage.`;
     case 'jira-story-creator':
       return `Created ${art.stories.length} Jira stories (${art.stories[0]?.key} … ${art.stories[art.stories.length - 1]?.key}) from "${prd.name}".`;
     case 'test-plan-creator':
       return `Test plan drafted for "${prd.profile.title}": ${f.length} test areas, risk-based prioritisation.`;
     case 'test-case-generator':
-      return `Generated ${tc.length} test cases (${counts.pos} positive, ${counts.neg} negative, ${counts.edge} edge, ${counts.destructive} destructive). Coverage: 100% of ACs.`;
+      return prd.profile.grounded
+        ? `Generated ${tc.length} test cases (${counts.pos} positive, ${counts.neg} negative, ${counts.edge} edge) traced to ${prd.profile.requirements.length} PRD requirements. Coverage: 100% of stated requirements.`
+        : `Generated ${tc.length} test cases (${counts.pos} positive, ${counts.neg} negative, ${counts.edge} edge, ${counts.destructive} destructive) from ${f.length} features.`;
     case 'smoke-identifier':
       return `Selected ${art.smoke.length} smoke tests covering ${prd.profile.criticalFeatures.join(', ')} happy paths.`;
     case 'regression-builder':

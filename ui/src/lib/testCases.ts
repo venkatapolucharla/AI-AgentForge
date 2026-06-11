@@ -33,6 +33,16 @@ export interface TestCase {
   feasibilityReason: string;
   /** Minimal Playwright snippet for automatable cases ('' when manual). */
   playwrightSnippet: string;
+  /** The verbatim PRD requirement this case traces to ('' for legacy cases). */
+  requirement?: string;
+}
+
+/** Minimal requirement shape consumed by the grounded generator. */
+export interface RequirementInput {
+  id: string;
+  feature: string;
+  text: string;
+  dataTokens: string[];
 }
 
 /** Rich, human-sounding copy for well-known feature names. */
@@ -256,6 +266,124 @@ export function regressionFromCases(cases: TestCase[]): TestCase[] {
     ...c,
     id: `REG-${String(i + 1).padStart(3, '0')}`,
   }));
+}
+
+// ── Requirement-grounded generation (agent 04, strict PRD mode) ─────
+
+/** Lower-case the first letter so the requirement reads inside a sentence. */
+function lc(s: string): string {
+  return s.charAt(0).toLowerCase() + s.slice(1);
+}
+
+/** Render the literal data tokens, or note that the PRD specified none. */
+function dataFrom(tokens: string[]): string {
+  return tokens.length
+    ? tokens.join('; ')
+    : 'As specified in the requirement (PRD states no explicit values).';
+}
+
+/**
+ * Build the test cases for ONE requirement: a positive, a negative, and —
+ * when the requirement implies limits/data — an edge case. Every field is
+ * derived from the requirement text and its extracted data tokens; nothing
+ * is invented.
+ */
+function casesForRequirement(
+  req: RequirementInput,
+  index: number,
+  critical: boolean
+): TestCase[] {
+  const token = moduleToken(req.feature);
+  const reqText = req.text.replace(/\s+/g, ' ').trim();
+  const dataStr = dataFrom(req.dataTokens);
+  const out: TestCase[] = [];
+  let sub = 0;
+  const nextId = () => {
+    sub += 1;
+    return `TC-${token}-${String(index).padStart(2, '0')}${String.fromCharCode(64 + sub)}`;
+  };
+
+  // Positive — the requirement is satisfied as written.
+  out.push({
+    id: nextId(),
+    feature: req.feature,
+    type: 'Positive',
+    priority: critical ? 'P0 - Critical' : 'P1 - High',
+    title: `${req.feature}: ${lc(reqText).slice(0, 80)}`,
+    preconditions: `System is in a valid state for the "${req.feature}" feature.`,
+    steps: `1. Open the ${req.feature} area.\n2. Exercise the behaviour: ${lc(reqText)}.\n3. Observe the outcome against the requirement.`,
+    testData: dataStr,
+    expectedResult: `The system behaves exactly as the PRD requires: ${reqText}`,
+    acRef: req.id,
+    automationFeasibility: 'HIGH',
+    feasibilityReason: 'Requirement is explicit and assertable from the document.',
+    playwrightSnippet: snippetFor(req.feature, 'Positive'),
+    requirement: reqText,
+  });
+
+  // Negative — the requirement is violated; system must handle it.
+  out.push({
+    id: nextId(),
+    feature: req.feature,
+    type: 'Negative',
+    priority: 'P2 - Medium',
+    title: `${req.feature}: violating "${lc(reqText).slice(0, 60)}" is handled`,
+    preconditions: `User is on the ${req.feature} screen with input that violates the requirement.`,
+    steps: `1. Open the ${req.feature} area.\n2. Attempt to break the rule: ${lc(reqText)}.\n3. Observe the error handling.`,
+    testData: req.dataTokens.length
+      ? `Invalid variants of: ${req.dataTokens.join('; ')}`
+      : 'Invalid / missing input for this requirement.',
+    expectedResult: `The action is blocked with a clear, specific message; the rule "${reqText}" is enforced and no invalid state is saved.`,
+    acRef: req.id,
+    automationFeasibility: 'HIGH',
+    feasibilityReason: 'The enforced rule and rejection are observable.',
+    playwrightSnippet: snippetFor(req.feature, 'Negative'),
+    requirement: reqText,
+  });
+
+  // Edge — only when the requirement actually names limits / quantities.
+  const hasLimits = /\b(\d|max|min|maximum|minimum|limit|up to|at least|at most|range|between|character|length)\b/i.test(
+    reqText
+  );
+  if (hasLimits) {
+    out.push({
+      id: nextId(),
+      feature: req.feature,
+      type: 'Edge',
+      priority: 'P3 - Low',
+      title: `${req.feature}: boundary of "${lc(reqText).slice(0, 55)}"`,
+      preconditions: `System ready to test the boundary stated in the requirement.`,
+      steps: `1. Open the ${req.feature} area.\n2. Drive the values to the boundary named in: ${lc(reqText)}.\n3. Verify behaviour exactly at, below, and above the limit.`,
+      testData: req.dataTokens.length
+        ? `Boundary values around: ${req.dataTokens.join('; ')}`
+        : 'Boundary values implied by the requirement.',
+      expectedResult: `At the stated limit the behaviour matches the PRD; beyond it the system rejects/handles gracefully per "${reqText}".`,
+      acRef: req.id,
+      automationFeasibility: 'MEDIUM',
+      feasibilityReason: 'Boundary values are scriptable but need varied fixtures.',
+      playwrightSnippet: snippetFor(req.feature, 'Edge'),
+      requirement: reqText,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Generate test cases STRICTLY from the requirements extracted from the
+ * PRD. If no requirements were found, returns an empty array (the caller
+ * must report this rather than fabricate cases).
+ */
+export function generateTestCasesFromRequirements(
+  requirements: RequirementInput[],
+  criticalFeatures: string[] = []
+): TestCase[] {
+  const cases: TestCase[] = [];
+  requirements.forEach((req, i) => {
+    const critical = criticalFeatures.includes(req.feature);
+    cases.push(...casesForRequirement(req, i + 1, critical));
+  });
+  return cases;
 }
 
 // ── Backwards-compatible default (e-commerce) helpers ───────────────

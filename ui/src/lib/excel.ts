@@ -57,6 +57,7 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     'Test Data',
     'Expected Result',
     'AC Reference',
+    'PRD Requirement (source)',
     'Automation Feasibility',
     'Feasibility Reason',
     'Playwright Snippet',
@@ -72,6 +73,7 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     c.testData,
     c.expectedResult,
     c.acRef,
+    c.requirement || '(feature-level — no verbatim requirement)',
     c.automationFeasibility,
     c.feasibilityReason,
     c.playwrightSnippet || '(manual — no snippet)',
@@ -88,6 +90,7 @@ export function downloadCasesExcel(cases: TestCase[], opts: ExcelOptions): void 
     { wch: 30 }, // Test Data
     { wch: 50 }, // Expected Result
     { wch: 12 }, // AC Ref
+    { wch: 55 }, // PRD Requirement (source)
     { wch: 14 }, // Feasibility
     { wch: 40 }, // Feasibility Reason
     { wch: 50 }, // Playwright Snippet
