@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "version": 2,
+  "installCommand": "npm ci --prefix ui && npm ci --prefix server",
   "buildCommand": "npm run build --prefix ui && npm run typecheck --prefix server",
   "framework": null,
   "env": {
