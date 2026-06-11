@@ -14,9 +14,9 @@ export default function AgentCard({ agent, selected, onSelect }: Props) {
   return (
     <button
       onClick={() => onSelect(agent.id)}
-      className={`group w-full rounded-lg border-l-4 ${s.border} border-y border-r border-y-slate-800 border-r-slate-800 bg-slate-900/60 p-3 text-left transition
-        hover:bg-slate-800/70 hover:border-r-slate-700
-        ${selected ? 'ring-2 ring-sky-500/60 bg-slate-800/80' : ''}`}
+      className={`group w-full rounded-lg border-l-4 ${s.border} border-y border-r border-y-slate-200 border-r-slate-200 bg-slate-100 p-3 text-left transition
+        hover:bg-slate-150 hover:border-r-slate-300
+        ${selected ? 'ring-2 ring-sky-500/60 bg-sky-50' : ''}`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex min-w-0 items-center gap-2">
@@ -26,7 +26,7 @@ export default function AgentCard({ agent, selected, onSelect }: Props) {
               <span className="font-mono text-[11px] text-slate-500">
                 {agent.id}
               </span>
-              <span className="truncate text-sm font-semibold text-slate-100">
+              <span className="truncate text-sm font-semibold text-slate-900">
                 {agent.name}
               </span>
             </div>
@@ -35,7 +35,7 @@ export default function AgentCard({ agent, selected, onSelect }: Props) {
         <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${s.dot}`} />
       </div>
 
-      <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-slate-400">
+      <p className="mt-1.5 line-clamp-2 text-[11px] leading-snug text-slate-600">
         {agent.lastOutput ?? agent.description}
       </p>
 

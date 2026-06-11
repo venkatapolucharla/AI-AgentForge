@@ -239,12 +239,12 @@ export default function App() {
 
       {/* No-PRD banner */}
       {!activePrd && (
-        <div className="shrink-0 bg-sky-500/10 px-4 py-1.5 text-center text-[11px] text-sky-300">
-          No active PRD. <button onClick={() => setPrdManagerOpen(true)} className="underline">Upload a PRD</button> to let the 15 agents generate the test plan, test cases, smoke &amp; regression suites, defects, and Jira tickets from it.
+        <div className="shrink-0 bg-sky-100 px-4 py-1.5 text-center text-[11px] text-sky-700">
+          No active PRD. <button onClick={() => setPrdManagerOpen(true)} className="underline">Upload a PRD</button> to let the 8 agents generate the test plan, test cases, smoke &amp; regression suites, defects, and Jira tickets from it.
         </div>
       )}
 
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 bg-white">
         <Sidebar agents={agents} selectedId={selectedId} onSelect={selectAgent} />
 
         <main className="flex min-w-0 flex-1 flex-col">

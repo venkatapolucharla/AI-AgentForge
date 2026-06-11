@@ -23,17 +23,17 @@ export default function TopBar({
   const s = STATUS_STYLES[globalStatus];
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950/80 px-4 backdrop-blur">
+    <header className="flex h-14 shrink-0 items-center justify-between border-b border-slate-200 bg-white px-4 backdrop-blur">
       <div className="flex items-center gap-3">
         <div className="flex h-8 w-8 items-center justify-center rounded-md bg-gradient-to-br from-sky-500 to-indigo-600 text-sm font-bold text-white">
-          QA
+          AI
         </div>
         <div className="leading-tight">
-          <div className="text-sm font-semibold text-slate-100">
-            QA Orchestration Platform
+          <div className="text-sm font-semibold text-slate-900">
+            AI Agent Forge
           </div>
           <div className="text-[11px] text-slate-500">
-            15 agents · 5 phases
+            8 agents · 5 phases
           </div>
         </div>
       </div>
@@ -50,7 +50,7 @@ export default function TopBar({
         {/* PRD manager */}
         <button
           onClick={onOpenPrdManager}
-          className="flex items-center gap-2 rounded-md border border-slate-700 bg-slate-800 px-3 py-1.5 text-xs font-medium text-slate-200 transition hover:bg-slate-700"
+          className="flex items-center gap-2 rounded-md border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-200"
           title="Manage PRD documents"
         >
           <span>📄</span>
@@ -60,7 +60,7 @@ export default function TopBar({
             'Upload PRD'
           )}
           {prdCount > 0 && (
-            <span className="rounded-full bg-slate-700 px-1.5 text-[10px] text-slate-300">
+            <span className="rounded-full bg-slate-300 px-1.5 text-[10px] text-slate-700">
               {prdCount}
             </span>
           )}
@@ -70,7 +70,7 @@ export default function TopBar({
         <button
           onClick={onOpenOrchestrator}
           className="flex items-center gap-2 rounded-md bg-gradient-to-br from-emerald-500 to-teal-600 px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:brightness-110"
-          title="Run the full 15-agent pipeline"
+          title="Run the full 8-agent pipeline"
         >
           <span>🎛️</span>
           Run Pipeline
@@ -82,7 +82,7 @@ export default function TopBar({
           className="flex items-center gap-2 rounded-md bg-gradient-to-br from-sky-500 to-indigo-600 px-3 py-1.5 text-xs font-semibold text-white shadow transition hover:brightness-110"
         >
           <span>💬</span>
-          Ask QA Bot
+          Ask Smart Advisor
         </button>
       </div>
     </header>

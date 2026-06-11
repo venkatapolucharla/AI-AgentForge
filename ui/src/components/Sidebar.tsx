@@ -17,28 +17,28 @@ export default function Sidebar({ agents, selectedId, onSelect }: Props) {
   );
 
   return (
-    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-800 bg-slate-950/60">
+    <aside className="flex h-full w-72 shrink-0 flex-col border-r border-slate-200 bg-slate-50">
       <div className="flex items-center justify-between px-4 py-3">
-        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+        <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-600">
           Agents
         </h2>
-        <span className="rounded-full bg-slate-800 px-2 py-0.5 text-[11px] text-slate-400">
+        <span className="rounded-full bg-slate-200 px-2 py-0.5 text-[11px] text-slate-600">
           {agents.length}
         </span>
       </div>
 
-      <div className="flex flex-wrap gap-1.5 px-4 pb-3 text-[11px] text-slate-500">
+      <div className="flex flex-wrap gap-1.5 px-4 pb-3 text-[11px] text-slate-600">
         {counts.running ? (
-          <span className="text-sky-400">{counts.running} running</span>
+          <span className="text-blue-600">{counts.running} running</span>
         ) : null}
         {counts.awaiting ? (
-          <span className="text-amber-400">{counts.awaiting} awaiting</span>
+          <span className="text-amber-600">{counts.awaiting} awaiting</span>
         ) : null}
         {counts.complete ? (
-          <span className="text-emerald-400">{counts.complete} done</span>
+          <span className="text-emerald-600">{counts.complete} done</span>
         ) : null}
         {counts.failed ? (
-          <span className="text-red-400">{counts.failed} failed</span>
+          <span className="text-red-600">{counts.failed} failed</span>
         ) : null}
       </div>
 
