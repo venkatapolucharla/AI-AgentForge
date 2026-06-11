@@ -34,7 +34,7 @@ export const AGENTS: Agent[] = [
     slug: 'blueprint-architect',
     name: 'Blueprint Architect',
     phase: 'requirements',
-    glyph: 'ðŸ—ï¸',
+    glyph: '🏗️',
     description: 'Transform PRD into structured blueprints with features & acceptance criteria.',
     action: 'Analyse the uploaded PRD and architect the requirements blueprint.',
     willDo: [
@@ -52,7 +52,7 @@ export const AGENTS: Agent[] = [
     slug: 'workflow-weaver',
     name: 'Workflow Weaver',
     phase: 'requirements',
-    glyph: 'ðŸŽ«',
+    glyph: '🎫',
     description: 'Creates Jira stories from the extracted requirements.',
     action: 'Create Jira stories in project QA from extracted requirements.',
     willDo: [
@@ -61,7 +61,7 @@ export const AGENTS: Agent[] = [
       'Create the issues in project "QA" (sprint backlog)',
     ],
     sampleOutput:
-      'Created 12 Jira stories (QA-101 â€¦ QA-112) and linked them to epic QA-100.',
+      'Created 12 Jira stories (QA-101 … QA-112) and linked them to epic QA-100.',
     status: 'idle',
     lastOutput: null,
   },
@@ -70,7 +70,7 @@ export const AGENTS: Agent[] = [
     slug: 'test-alchemist',
     name: 'Test Alchemist',
     phase: 'test-design',
-    glyph: 'âœ¨',
+    glyph: '✨',
     description: 'Alchemically transform acceptance criteria into comprehensive test cases.',
     action: 'Generate detailed test cases from stories.',
     willDo: [
@@ -88,7 +88,7 @@ export const AGENTS: Agent[] = [
     slug: 'quality-guardian',
     name: 'Quality Guardian',
     phase: 'execution',
-    glyph: 'ðŸ›¡ï¸',
+    glyph: '🛡️',
     description: 'Guard quality by executing tests and capturing comprehensive evidence.',
     action: 'Execute smoke + regression test suites.',
     willDo: [
@@ -106,7 +106,7 @@ export const AGENTS: Agent[] = [
     slug: 'bug-hunter',
     name: 'Bug Hunter',
     phase: 'execution',
-    glyph: 'ðŸ”',
+    glyph: '🔍',
     description: 'Hunt down root causes and separate defects from flaky tests.',
     action: 'Analyse failed tests and identify root causes.',
     willDo: [
@@ -115,7 +115,7 @@ export const AGENTS: Agent[] = [
       'Distinguish product defects from environmental issues',
     ],
     sampleOutput:
-      'Hunted 3 failures â†’ 2 confirmed defects (1 high, 1 medium), 1 environmental.',
+      'Hunted 3 failures → 2 confirmed defects (1 high, 1 medium), 1 environmental.',
     status: 'idle',
     lastOutput: null,
   },
@@ -124,7 +124,7 @@ export const AGENTS: Agent[] = [
     slug: 'code-conjurer',
     name: 'Code Conjurer',
     phase: 'automation',
-    glyph: 'ðŸª„',
+    glyph: '🪄',
     description: 'Conjure elegant Playwright automation code with POM pattern.',
     action: 'Generate Playwright test specs for prioritised cases.',
     willDo: [
@@ -142,7 +142,7 @@ export const AGENTS: Agent[] = [
     slug: 'quality-sentinel',
     name: 'Quality Sentinel',
     phase: 'automation',
-    glyph: 'âœ…',
+    glyph: '✅',
     description: 'Stand sentinel over code quality and best practices.',
     action: 'Review generated Playwright code for quality issues.',
     willDo: [
@@ -160,7 +160,7 @@ export const AGENTS: Agent[] = [
     slug: 'smart-advisor',
     name: 'Smart Advisor',
     phase: 'cicd',
-    glyph: 'ðŸ’¬',
+    glyph: '💬',
     description: 'AI-powered guide through your entire QA orchestration journey.',
     action: 'Open an intelligent chat session.',
     willDo: [
